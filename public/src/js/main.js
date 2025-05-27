@@ -280,7 +280,7 @@ async function convertToPPT() {
         const endTime = performance.now();
         
         // 处理结果
-        if (result.success && result.blob) {
+        if (result.success) {
             const duration = ((endTime - startTime) / 1000).toFixed(2);
             showConversionSuccess(result, duration);
             
@@ -381,19 +381,66 @@ function updateConversionStatus(step, status, message) {
  * 显示转换成功
  */
 function showConversionSuccess(result, duration) {
-    elements.conversionResult.innerHTML = `
-        <div class="success-message">
-            <h4>✅ 转换成功！</h4>
-            <p>文件已自动下载</p>
-            <div class="conversion-details">
-                <p><strong>文件名:</strong> ${result.details?.fileName || elements.pptTitleInput.value + '.pptx'}</p>
-                <p><strong>转换模式:</strong> ${getModeName(result.details?.mode)}</p>
-                <p><strong>转换时间:</strong> ${duration}秒</p>
+    // 安全检查：确保元素存在
+    if (elements.conversionResult) {
+        elements.conversionResult.innerHTML = `
+            <div class="success-message">
+                <h4>✅ 转换成功！</h4>
+                <p>文件已自动下载</p>
+                <div class="conversion-details">
+                    <p><strong>文件名:</strong> ${result.details?.fileName || elements.pptTitleInput.value + '.pptx'}</p>
+                    <p><strong>转换模式:</strong> ${getModeName(result.details?.mode)}</p>
+                    <p><strong>转换时间:</strong> ${duration}秒</p>
+                </div>
             </div>
-        </div>
-    `;
-    elements.conversionResult.classList.add('show', 'slide-up');
-    elements.conversionResult.style.display = 'block';
+        `;
+        elements.conversionResult.classList.add('show', 'slide-up');
+        elements.conversionResult.style.display = 'block';
+    } else {
+        // 如果没有找到转换结果元素，创建一个临时的成功显示
+        console.log('转换成功，但未找到结果显示区域');
+        
+        // 尝试在页面中找到合适的位置显示成功信息
+        const body = document.body;
+        const successDiv = document.createElement('div');
+        successDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 400px;
+        `;
+        successDiv.innerHTML = `
+            <h4 style="color: #4CAF50; margin: 0 0 10px 0;">✅ 转换成功！</h4>
+            <p style="margin: 0 0 10px 0;">文件已自动下载</p>
+            <p style="margin: 0 0 10px 0;"><strong>文件名:</strong> ${result.details?.fileName || elements.pptTitleInput?.value + '.pptx' || '转换的演示文稿.pptx'}</p>
+            <p style="margin: 0 0 10px 0;"><strong>转换模式:</strong> ${getModeName(result.details?.mode)}</p>
+            <p style="margin: 0 0 15px 0;"><strong>转换时间:</strong> ${duration}秒</p>
+            <button onclick="this.parentElement.remove()" style="
+                margin-top: 15px;
+                padding: 8px 15px;
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            ">关闭</button>
+        `;
+        body.appendChild(successDiv);
+        
+        // 10秒后自动移除
+        setTimeout(() => {
+            if (successDiv.parentElement) {
+                successDiv.remove();
+            }
+        }, 10000);
+    }
     
     showNotification('PPT文件生成成功！', 'success');
 }

@@ -75,12 +75,8 @@ class HtmlToPptConverter {
             
             console.log('HTML渲染完成，查找内容元素...');
             
-            // 查找主要内容区域
-            const contentElement = renderArea.querySelector('.content') || 
-                                 renderArea.querySelector('.aspect-ratio-box') || 
-                                 renderArea.querySelector('body') || 
-                                 renderArea.firstElementChild || 
-                                 renderArea;
+            // 查找主要内容区域 - 使用改进的内容识别逻辑
+            const { captureTarget: contentElement } = this._calculateCaptureDetails(renderArea, '初始内容识别');
             
             if (!contentElement) {
                 throw new Error('未找到有效的内容元素');
@@ -808,6 +804,30 @@ class HtmlToPptConverter {
             return 18;
         } else if (element.classList.contains('presentation-date')) {
             return 14;
+        }
+        // 新增：智慧物流园区HTML结构的后备字体大小
+        else if (element.classList.contains('page-title')) {
+            return 32;
+        } else if (element.classList.contains('content-title')) {
+            return 28;
+        } else if (element.classList.contains('section-number')) {
+            return 40;
+        } else if (element.classList.contains('core-title')) {
+            return 24;
+        } else if (element.classList.contains('core-subtitle')) {
+            return 18;
+        } else if (element.classList.contains('capability-title')) {
+            return 16;
+        } else if (element.classList.contains('intro-text')) {
+            return 14;
+        } else if (element.classList.contains('capability-desc')) {
+            return 12;
+        } else if (element.classList.contains('output-text')) {
+            return 12;
+        } else if (element.classList.contains('feature-tag')) {
+            return 10;
+        } else if (element.classList.contains('source-system')) {
+            return 11;
         } else {
             return 16;
         }
@@ -823,7 +843,7 @@ class HtmlToPptConverter {
         // 定义文字元素的选择器，按优先级排序 - 更加精确的选择器
         const textSelectors = [
             // 高优先级：明确的文字元素
-            '.main-title', '.sub-title', '.title', '.heading',
+            '.main-title', '.sub-title', '.title', '.heading', '.page-title', '.page-subtitle',
             '.presenter-name', '.presentation-date', '.author',
             'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
             
@@ -831,13 +851,28 @@ class HtmlToPptConverter {
             'p', '.text', '.content-text', '.description',
             '.label', '.caption', '.item-text',
             
+            // 目录和列表相关
+            '.toc-title', '.toc-subtitle', '.toc-content', '.toc-number',
+            '.toc-item h3', '.toc-item p', '.toc-item .toc-content h3', '.toc-item .toc-content p',
+            
+            // 新增：支持智慧物流园区HTML结构的选择器
+            '.content-title', '.intro-text', '.core-title', '.core-subtitle',
+            '.output-text', '.capability-title', '.capability-desc',
+            '.section-number', '.feature-tag', '.source-system',
+            
+            // 页脚和其他信息
+            '.footer', '.footer-logo', '.page-number',
+            
             // 低优先级：可能包含文字的元素 - 移除过于宽泛的div选择器
             'span', 'a', 'button', 'td', 'th', 'li',
             'em', 'strong', 'b', 'i', 'small',
             
             // 特定类名的div（只选择有明确文字用途的div）
             'div.item-number', 'div.item-text', 'div.text-content', 
-            'div.presenter-info', 'div.content-title'
+            'div.presenter-info', 'div.content-title', 'div.toc-number',
+            'div.toc-title', 'div.toc-subtitle', 'div.footer-logo', 'div.page-number',
+            'div.section-number', 'div.core-title', 'div.core-subtitle', 'div.output-text',
+            'div.capability-title', 'div.capability-desc', 'div.intro-text'
         ];
         
         // 逐个选择器查找元素
@@ -871,15 +906,29 @@ class HtmlToPptConverter {
      */
     getElementPriority(selector) {
         const priorityMap = {
-            '.main-title': 10, '.title': 9, '.heading': 9,
+            '.main-title': 10, '.title': 9, '.heading': 9, '.page-title': 9, '.page-subtitle': 7,
             'h1': 8, 'h2': 7, 'h3': 6,
             '.sub-title': 8, '.presenter-name': 7, '.presentation-date': 6,
             'p': 5, '.text': 5, '.content-text': 5,
             '.description': 4, '.label': 4, '.caption': 4,
             '.item-text': 4, '.item-number': 3,
+            // 目录相关
+            '.toc-title': 6, '.toc-subtitle': 4, '.toc-content': 5, '.toc-number': 5,
+            '.toc-item h3': 6, '.toc-item p': 4, '.toc-item .toc-content h3': 6, '.toc-item .toc-content p': 4,
+            // 新增：智慧物流园区HTML结构的优先级
+            '.content-title': 8, '.intro-text': 5, '.core-title': 7, '.core-subtitle': 6,
+            '.output-text': 5, '.capability-title': 6, '.capability-desc': 4,
+            '.section-number': 7, '.feature-tag': 3, '.source-system': 4,
+            // 页脚相关
+            '.footer': 3, '.footer-logo': 4, '.page-number': 3,
+            // 其他元素
             'span': 3, 'a': 3, 'button': 3, 'em': 3, 'strong': 3,
             'div.item-number': 3, 'div.item-text': 4, 'div.text-content': 4,
-            'div.presenter-info': 2, 'div.content-title': 5
+            'div.presenter-info': 2, 'div.content-title': 5,
+            'div.toc-number': 5, 'div.toc-title': 6, 'div.toc-subtitle': 4, 
+            'div.footer-logo': 4, 'div.page-number': 3,
+            'div.section-number': 7, 'div.core-title': 7, 'div.core-subtitle': 6, 'div.output-text': 5,
+            'div.capability-title': 6, 'div.capability-desc': 4, 'div.intro-text': 5
         };
         return priorityMap[selector] || 1;
     }
@@ -1191,6 +1240,30 @@ class HtmlToPptConverter {
             return Math.max(24, baseFontSize * 1.1);
         } else if (element.classList.contains('presenter-name') || element.classList.contains('presentation-date')) {
             return Math.max(14, baseFontSize * 0.9);
+        }
+        // 新增：智慧物流园区HTML结构的字体大小
+        else if (element.classList.contains('page-title')) {
+            return Math.max(32, baseFontSize * 1.4);
+        } else if (element.classList.contains('content-title')) {
+            return Math.max(28, baseFontSize * 1.3);
+        } else if (element.classList.contains('section-number')) {
+            return Math.max(40, baseFontSize * 2);
+        } else if (element.classList.contains('core-title')) {
+            return Math.max(24, baseFontSize * 1.2);
+        } else if (element.classList.contains('core-subtitle')) {
+            return Math.max(18, baseFontSize * 0.9);
+        } else if (element.classList.contains('capability-title')) {
+            return Math.max(16, baseFontSize * 1.0);
+        } else if (element.classList.contains('intro-text')) {
+            return Math.max(14, baseFontSize * 0.9);
+        } else if (element.classList.contains('capability-desc')) {
+            return Math.max(12, baseFontSize * 0.8);
+        } else if (element.classList.contains('output-text')) {
+            return Math.max(12, baseFontSize * 0.8);
+        } else if (element.classList.contains('feature-tag')) {
+            return Math.max(10, baseFontSize * 0.7);
+        } else if (element.classList.contains('source-system')) {
+            return Math.max(11, baseFontSize * 0.75);
         } else if (priority >= 8) {
             // 高优先级元素
             return Math.max(20, baseFontSize);
@@ -1247,6 +1320,69 @@ class HtmlToPptConverter {
             if (textOptions.color === '000000') {
                 textOptions.color = '666666'; // 使用灰色
             }
+        }
+        
+        // 新增：智慧物流园区HTML结构的特殊格式
+        else if (element.classList.contains('page-title')) {
+            textOptions.bold = true;
+            textOptions.fontSize = Math.max(textOptions.fontSize, 32);
+            textOptions.color = 'ffffff'; // 白色文字
+        }
+        
+        else if (element.classList.contains('content-title')) {
+            textOptions.bold = true;
+            textOptions.fontSize = Math.max(textOptions.fontSize, 28);
+            textOptions.color = '1a2634'; // 深蓝色
+        }
+        
+        else if (element.classList.contains('section-number')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 40);
+            textOptions.color = 'ffffff'; // 白色文字
+            textOptions.opacity = 20; // 设置透明度
+        }
+        
+        else if (element.classList.contains('core-title')) {
+            textOptions.bold = true;
+            textOptions.fontSize = Math.max(textOptions.fontSize, 24);
+            textOptions.color = 'ffffff'; // 白色文字
+        }
+        
+        else if (element.classList.contains('core-subtitle')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 18);
+            textOptions.color = 'ffffff'; // 白色文字
+        }
+        
+        else if (element.classList.contains('capability-title')) {
+            textOptions.bold = true;
+            textOptions.fontSize = Math.max(textOptions.fontSize, 16);
+            textOptions.color = '1a2634'; // 深蓝色
+        }
+        
+        else if (element.classList.contains('intro-text')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 14);
+            textOptions.color = '333333'; // 深灰色
+        }
+        
+        else if (element.classList.contains('capability-desc')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 12);
+            textOptions.color = '555555'; // 中灰色
+        }
+        
+        else if (element.classList.contains('output-text')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 12);
+            textOptions.color = '1a2634'; // 深蓝色
+            textOptions.fontWeight = '500';
+        }
+        
+        else if (element.classList.contains('feature-tag')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 10);
+            textOptions.color = '9c27b0'; // 紫色
+        }
+        
+        else if (element.classList.contains('source-system')) {
+            textOptions.bold = true;
+            textOptions.fontSize = Math.max(textOptions.fontSize, 11);
+            textOptions.color = 'ffffff'; // 白色文字
         }
         
         // 根据优先级调整
@@ -1490,12 +1626,23 @@ class HtmlToPptConverter {
      * 生成PPT文件
      */
     async generatePPT() {
-        const fileName = this.options.title + '.pptx';
-        
-        await this.pptx.writeFile({ 
-            fileName: fileName,
-            compression: this.options.highQuality ? false : true
-        });
+        try {
+            const fileName = this.options.title + '.pptx';
+            
+            console.log('开始生成PPT文件:', fileName);
+            
+            await this.pptx.writeFile({ 
+                fileName: fileName,
+                compression: this.options.highQuality ? false : true
+            });
+            
+            console.log('PPT文件生成成功:', fileName);
+            return { fileName: fileName, success: true };
+            
+        } catch (error) {
+            console.error('PPT文件生成失败:', error);
+            throw new Error(`PPT文件生成失败: ${error.message}`);
+        }
     }
     
     /**
@@ -1520,7 +1667,37 @@ class HtmlToPptConverter {
     }
 
     _calculateCaptureDetails(element, modeName) {
-        const contentSelectors = ['.content', '.aspect-ratio-box', '[data-capture-target]', 'main', 'article', '.main-content-area', '.slide-content'];
+        console.log(`${modeName}: 🔍 开始查找内容元素，搜索范围:`, element);
+        console.log(`${modeName}: 📊 搜索范围的子元素数量:`, element.children.length);
+        console.log(`${modeName}: 📝 搜索范围的innerHTML长度:`, element.innerHTML.length);
+        
+        // 打印前几个子元素的信息
+        if (element.children.length > 0) {
+            console.log(`${modeName}: 📋 前5个子元素:`);
+            Array.from(element.children).slice(0, 5).forEach((child, index) => {
+                console.log(`  ${index + 1}. ${child.tagName}.${child.className} (id: ${child.id})`);
+            });
+        }
+        
+        const contentSelectors = [
+            // 智慧物流园区HTML结构
+            '.container .aspect-ratio-box .content', '.aspect-ratio-box .content', '.container .content',
+            
+            // 常见的演示文稿容器
+            '.presentation-container', '.content-wrapper', '.slide-container',
+            
+            // 原有的选择器
+            '.content', '.aspect-ratio-box', '[data-capture-target]', 
+            'main', 'article', '.main-content-area', '.slide-content',
+            
+            // 其他常见的容器选择器
+            '.container', '.wrapper', '.page-container', '.layout',
+            'section', '.section', '.page', '.slide',
+            
+            // body的直接子元素
+            'body > div', 'body > main', 'body > section'
+        ];
+        
         let captureTarget = null;
         for (const selector of contentSelectors) {
             const found = element.querySelector(selector);
@@ -1530,9 +1707,30 @@ class HtmlToPptConverter {
                 break;
             }
         }
+        
         if (!captureTarget) {
-            captureTarget = element.matches('body') && element.firstElementChild ? element.firstElementChild : element;
-            console.warn(`${modeName}: 未找到优先选择器对应的元素，将使用:`, captureTarget);
+            // 如果仍然没有找到，尝试寻找body下最大的有效div
+            const bodyElement = element.querySelector('body');
+            if (bodyElement) {
+                const bodyChildren = Array.from(bodyElement.children);
+                // 过滤掉script、style、link等非内容元素
+                const contentChildren = bodyChildren.filter(child => {
+                    const tagName = child.tagName.toLowerCase();
+                    return !['script', 'style', 'link', 'meta', 'title', 'head'].includes(tagName);
+                });
+                
+                if (contentChildren.length > 0) {
+                    // 选择第一个有效的内容元素
+                    captureTarget = contentChildren[0];
+                    console.log(`${modeName}: 未找到优先选择器，使用body下的第一个内容元素:`, captureTarget);
+                } else {
+                    captureTarget = bodyElement;
+                    console.log(`${modeName}: 使用body元素作为备用:`, captureTarget);
+                }
+            } else {
+                captureTarget = element.matches('body') && element.firstElementChild ? element.firstElementChild : element;
+                console.warn(`${modeName}: 未找到body元素，将使用:`, captureTarget);
+            }
         }
 
         const rect = captureTarget.getBoundingClientRect();
