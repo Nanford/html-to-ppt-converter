@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML转PPT在线转换工具</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="stylesheet" href="src/css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>HTML转PPT在线转换工具</h1>
+            <p>将16:9比例的HTML页面精确转换为PPT文件，保持布局和样式</p>
+        </header>
+
+        <main class="app-main">
+            <section class="input-panel">
+                <div class="form-group">
+                    <label for="htmlInput">粘贴HTML代码：</label>
+                    <textarea id="htmlInput" rows="10" placeholder="请粘贴完整的HTML代码..."></textarea>
+                </div>
+
+                <div class="options-grid">
+                    <div class="form-group">
+                        <label for="conversionModeSelect">转换模式：</label>
+                        <select id="conversionModeSelect">
+                            <option value="hybrid" selected>混合模式 (推荐)</option>
+                            <option value="screenshot">截图模式</option>
+                            <option value="elements">元素解析模式</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pptTitleInput">PPT标题：</label>
+                        <input type="text" id="pptTitleInput" value="转换的演示文稿">
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <label><input type="checkbox" id="preserveBackgroundCheckbox" checked> 保留背景样式</label>
+                    <label><input type="checkbox" id="extractTextCheckbox" checked> 提取可编辑文本</label>
+                </div>
+            </section>
+
+            <section class="usage-instructions">
+                <h3><span role="img" aria-label="light-bulb">💡</span> 使用说明</h3>
+                <ul>
+                    <li>混合模式：可灵活选择背景截图和文字提取的组合（推荐）</li>
+                    <li>截图模式：高质量截图，可选择同时保留可编辑文字</li>
+                    <li>元素解析模式：全部解析为PPT元素，完全可编辑但可能有样式偏差</li>
+                </ul>
+                <p class="usage-tip">💡 提示：除元素模式外，所有模式都可以通过勾选框自由组合"背景保留"和"文字提取"功能</p>
+            </section>
+
+            <section class="action-buttons">
+                <button id="convertBtn" class="btn btn-primary">
+                    <span class="btn-spinner" style="display:none;"></span>
+                    开始转换
+                </button>
+                <button id="previewBtn" class="btn btn-secondary">预览HTML</button>
+                <button id="loadExampleBtn" class="btn btn-secondary">加载示例</button>
+            </section>
+            
+            <!-- 用于 html2canvas 的隐藏渲染区域 -->
+            <div id="hiddenRenderArea" style="position: absolute; left: -9999px; top: -9999px; width: 1920px; height: 1080px; overflow: hidden;"></div>
+            
+            <!-- 消息通知区域 -->
+            <div id="notificationArea" class="notification-area"></div>
+
+            <!-- 依赖库状态 (对用户不可见，但JS需要) -->
+            <div style="display:none;">
+                <span id="pptxgenjs-status"></span>
+                <span id="html2canvas-status"></span>
+            </div>
+        </main>
+    </div>
+
+    <!-- 依赖库 -->
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+    <!-- 应用模块 -->
+    <script src="src/js/utils.js"></script>
+    <script src="src/js/converter.js"></script>
+    <script src="src/js/main.js"></script>
+</body>
+</html>

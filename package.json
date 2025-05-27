@@ -1,0 +1,42 @@
+{
+  "name": "html-to-ppt-converter",
+  "version": "1.0.0",
+  "description": "Convert HTML pages to PowerPoint presentations with perfect layout preservation",
+  "main": "public/index.html",
+  "scripts": {
+    "start": "npx serve public -l 3000",
+    "dev": "npx serve . -l 3000",
+    "build": "echo 'No build required for static site'",
+    "deploy": "vercel --prod",
+    "preview": "vercel",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nanford/html-to-ppt-converter.git"
+  },
+  "keywords": [
+    "html",
+    "ppt",
+    "powerpoint",
+    "converter",
+    "presentation",
+    "html2ppt",
+    "pptx",
+    "web-tool",
+    "online-converter"
+  ],
+  "author": {
+    "name": "Nanford",
+    "email": "your.email@example.com"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.1"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+} 

@@ -1,0 +1,38 @@
+# robots.txt for HTML to PPT Converter
+
+# Allow all web crawlers
+User-agent: *
+Allow: /
+
+# Disallow access to source files
+Disallow: /src/js/
+Disallow: /.git/
+Disallow: /node_modules/
+Disallow: /.vercel/
+
+# Sitemap location (if you have one)
+# Sitemap: https://your-domain.vercel.app/sitemap.xml
+
+# Crawl-delay (in seconds)
+Crawl-delay: 1
+
+# Specific rules for major search engines
+# Google
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0
+
+# Bing
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 0
+
+# Baidu
+User-agent: Baiduspider
+Allow: /
+Crawl-delay: 1
+
+# Yandex
+User-agent: Yandex
+Allow: /
+Crawl-delay: 1 
