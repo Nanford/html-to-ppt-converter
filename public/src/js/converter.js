@@ -594,7 +594,7 @@ class HtmlToPptConverter {
     }
     
     /**
-     * 检查是否为嵌套重复元素 - 进一步简化逻辑
+     * 检查是否为嵌套重复元素 - 智能重复检查
      */
     isNestedDuplicate(element, allElements) {
         const elementText = element.textContent.trim();
@@ -614,16 +614,96 @@ class HtmlToPptConverter {
             }
         }
         
-        // 简化重复检查：只检查完全相同的文字内容且为直接父子关系
+        // 智能重复检查：检查是否有其他元素包含相同或更完整的文字内容
         for (const item of allElements) {
             const otherEl = item.element;
             if (otherEl === element) continue;
             
-            // 如果其他元素是当前元素的直接父元素
-            if (otherEl === element.parentElement) {
-                const otherText = otherEl.textContent.trim();
-                // 只有在文字完全相同且长度较短时才认为是重复
-                if (otherText === elementText && elementText.length < 20) {
+            const otherText = otherEl.textContent.trim();
+            
+            // 情况1：完全相同的文字内容，保留优先级更高或层级更精确的元素
+            if (otherText === elementText) {
+                // 如果其他元素优先级更高，当前元素是重复的
+                if (item.priority > this.getElementPriority(this.getElementSelector(element))) {
+                    return true;
+                }
+                
+                // 如果优先级相同，保留层级更精确的元素（子元素优先于父元素）
+                if (item.priority === this.getElementPriority(this.getElementSelector(element))) {
+                    if (this.isAncestor(otherEl, element)) {
+                        return false; // 当前元素是子元素，保留
+                    }
+                    if (this.isAncestor(element, otherEl)) {
+                        return true; // 当前元素是父元素，是重复的
+                    }
+                }
+            }
+            
+            // 情况2：当前元素的文字是其他元素文字的子集，且其他元素优先级更高
+            if (otherText.includes(elementText) && otherText.length > elementText.length) {
+                if (item.priority >= this.getElementPriority(this.getElementSelector(element))) {
+                    // 检查是否是有意义的包含关系（不是偶然的部分匹配）
+                    const trimmedOther = otherText.replace(/\s+/g, ' ');
+                    const trimmedElement = elementText.replace(/\s+/g, ' ');
+                    
+                    if (trimmedOther.includes(trimmedElement) && 
+                        (trimmedElement.length < trimmedOther.length * 0.8)) {
+                        return true;
+                    }
+                }
+            }
+            
+            // 情况3：检查是否为相邻的数字编号重复（如01、02等）
+            if (this.isNumberingDuplicate(element, otherEl, elementText, otherText)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 获取元素选择器字符串
+     */
+    getElementSelector(element) {
+        const tag = element.tagName.toLowerCase();
+        const classes = element.className ? '.' + element.className.split(' ').join('.') : '';
+        return tag + classes;
+    }
+    
+    /**
+     * 检查元素A是否是元素B的祖先
+     */
+    isAncestor(ancestorEl, descendantEl) {
+        let current = descendantEl.parentElement;
+        while (current) {
+            if (current === ancestorEl) {
+                return true;
+            }
+            current = current.parentElement;
+        }
+        return false;
+    }
+    
+    /**
+     * 检查是否为编号重复（如01、02这种情况）
+     */
+    isNumberingDuplicate(element, otherElement, elementText, otherText) {
+        // 检查是否都是简短的数字编号
+        if (elementText.length <= 3 && otherText.length <= 3) {
+            const isElementNumber = /^\d+$/.test(elementText);
+            const isOtherNumber = /^\d+$/.test(otherText);
+            
+            if (isElementNumber && isOtherNumber) {
+                // 检查是否位置相近（可能是编号列表）
+                const elementRect = element.getBoundingClientRect();
+                const otherRect = otherElement.getBoundingClientRect();
+                
+                const verticalDistance = Math.abs(elementRect.top - otherRect.top);
+                const horizontalDistance = Math.abs(elementRect.left - otherRect.left);
+                
+                // 如果位置很相近，可能是重复的编号显示
+                if (verticalDistance < 50 && horizontalDistance < 50) {
                     return true;
                 }
             }
@@ -740,7 +820,7 @@ class HtmlToPptConverter {
         const textElements = [];
         const visited = new Set();
         
-        // 定义文字元素的选择器，按优先级排序
+        // 定义文字元素的选择器，按优先级排序 - 更加精确的选择器
         const textSelectors = [
             // 高优先级：明确的文字元素
             '.main-title', '.sub-title', '.title', '.heading',
@@ -751,9 +831,13 @@ class HtmlToPptConverter {
             'p', '.text', '.content-text', '.description',
             '.label', '.caption', '.item-text',
             
-            // 低优先级：可能包含文字的元素
-            'span', 'div', 'a', 'button', 'td', 'th', 'li',
-            'em', 'strong', 'b', 'i', 'small'
+            // 低优先级：可能包含文字的元素 - 移除过于宽泛的div选择器
+            'span', 'a', 'button', 'td', 'th', 'li',
+            'em', 'strong', 'b', 'i', 'small',
+            
+            // 特定类名的div（只选择有明确文字用途的div）
+            'div.item-number', 'div.item-text', 'div.text-content', 
+            'div.presenter-info', 'div.content-title'
         ];
         
         // 逐个选择器查找元素
@@ -776,6 +860,7 @@ class HtmlToPptConverter {
         });
         
         // 额外检查：寻找直接包含文字但没有被选择器覆盖的元素
+        // 但排除大容器元素
         this.findAdditionalTextElements(container, textElements, visited);
         
         return textElements;
@@ -791,14 +876,16 @@ class HtmlToPptConverter {
             '.sub-title': 8, '.presenter-name': 7, '.presentation-date': 6,
             'p': 5, '.text': 5, '.content-text': 5,
             '.description': 4, '.label': 4, '.caption': 4,
-            'span': 3, 'div': 2, 'a': 3,
-            'button': 3, 'em': 3, 'strong': 3
+            '.item-text': 4, '.item-number': 3,
+            'span': 3, 'a': 3, 'button': 3, 'em': 3, 'strong': 3,
+            'div.item-number': 3, 'div.item-text': 4, 'div.text-content': 4,
+            'div.presenter-info': 2, 'div.content-title': 5
         };
         return priorityMap[selector] || 1;
     }
     
     /**
-     * 寻找额外的文字元素
+     * 寻找额外的文字元素 - 更严格的筛选
      */
     findAdditionalTextElements(container, existingElements, visited) {
         const walker = document.createTreeWalker(
@@ -807,6 +894,10 @@ class HtmlToPptConverter {
             {
                 acceptNode: (node) => {
                     if (visited.has(node)) return NodeFilter.FILTER_REJECT;
+                    
+                    // 排除大容器元素
+                    if (this.isLargeContainer(node)) return NodeFilter.FILTER_REJECT;
+                    
                     if (!this.hasDirectTextContent(node)) return NodeFilter.FILTER_REJECT;
                     if (!this.hasMeaningfulTextContent(node)) return NodeFilter.FILTER_REJECT;
                     return NodeFilter.FILTER_ACCEPT;
@@ -828,27 +919,172 @@ class HtmlToPptConverter {
     }
     
     /**
-     * 过滤有效的文字元素
+     * 检查是否为大容器元素
+     */
+    isLargeContainer(element) {
+        // 检查元素的尺寸和内容
+        const rect = element.getBoundingClientRect();
+        const textContent = element.textContent.trim();
+        const childElements = element.children.length;
+        
+        // 如果元素很大且包含多个子元素，可能是容器
+        if (rect.width > 800 && rect.height > 300 && childElements > 3) {
+            return true;
+        }
+        
+        // 如果文字内容很长且包含换行，可能是包含多个文字元素的容器
+        if (textContent.length > 100 && textContent.includes('\n') && childElements > 2) {
+            return true;
+        }
+        
+        // 检查常见的容器类名
+        const className = element.className || '';
+        const containerClasses = [
+            'content', 'container', 'wrapper', 'layout', 'section',
+            'main', 'article', 'area', 'region', 'block'
+        ];
+        
+        for (const containerClass of containerClasses) {
+            if (className.includes(containerClass) && childElements > 1) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 过滤有效的文字元素 - 改进版本
      */
     filterValidTextElements(textElements) {
-        return textElements.filter(item => {
+        console.log(`开始过滤 ${textElements.length} 个文字元素...`);
+        
+        // 第一步：基本有效性过滤
+        const basicValid = textElements.filter(item => {
             const el = item.element;
             
             // 基本可见性检查
-            if (!this.isElementVisible(el)) return false;
+            if (!this.isElementVisible(el)) {
+                return false;
+            }
             
             // 检查是否有有意义的文字内容
-            if (!this.hasMeaningfulTextContent(el)) return false;
+            if (!this.hasMeaningfulTextContent(el)) {
+                return false;
+            }
             
             // 检查元素大小
             const rect = el.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) return false;
-            
-            // 避免重复的嵌套元素
-            if (this.isNestedDuplicate(el, textElements)) return false;
+            if (rect.width === 0 || rect.height === 0) {
+                return false;
+            }
             
             return true;
         });
+        
+        console.log(`基本过滤后剩余 ${basicValid.length} 个元素`);
+        
+        // 第二步：去重过滤
+        const deduplicatedElements = this.deduplicateTextElements(basicValid);
+        console.log(`去重后剩余 ${deduplicatedElements.length} 个元素`);
+        
+        return deduplicatedElements;
+    }
+    
+    /**
+     * 文字元素去重 - 新方法
+     */
+    deduplicateTextElements(textElements) {
+        const result = [];
+        const processedTexts = new Map(); // 文字内容 -> 最佳元素
+        
+        // 按优先级排序，优先级高的元素优先处理
+        const sortedElements = [...textElements].sort((a, b) => b.priority - a.priority);
+        
+        for (const item of sortedElements) {
+            const text = item.element.textContent.trim();
+            const normalizedText = this.normalizeText(text);
+            
+            // 检查是否已经有相同或相似的文字
+            let isDuplicate = false;
+            
+            for (const [existingText, existingItem] of processedTexts) {
+                if (this.isTextDuplicate(normalizedText, existingText, item, existingItem)) {
+                    isDuplicate = true;
+                    break;
+                }
+            }
+            
+            if (!isDuplicate) {
+                processedTexts.set(normalizedText, item);
+                result.push(item);
+                console.log(`✓ 保留文字元素: "${text.substring(0, 20)}..." [${item.selector}] 优先级:${item.priority}`);
+            } else {
+                console.log(`✗ 跳过重复文字: "${text.substring(0, 20)}..." [${item.selector}] 优先级:${item.priority}`);
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 标准化文字内容
+     */
+    normalizeText(text) {
+        return text.replace(/\s+/g, ' ').toLowerCase().trim();
+    }
+    
+    /**
+     * 检查两个文字是否重复
+     */
+    isTextDuplicate(text1, text2, item1, item2) {
+        // 完全相同
+        if (text1 === text2) {
+            return true;
+        }
+        
+        // 一个是另一个的子集（90%以上重叠）
+        const shorter = text1.length < text2.length ? text1 : text2;
+        const longer = text1.length < text2.length ? text2 : text1;
+        
+        if (longer.includes(shorter) && shorter.length / longer.length > 0.9) {
+            return true;
+        }
+        
+        // 检查是否为数字编号的重复情况
+        if (this.isSimilarNumbering(text1, text2)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 检查是否为相似的数字编号
+     */
+    isSimilarNumbering(text1, text2) {
+        // 都是短数字
+        if (text1.length <= 3 && text2.length <= 3) {
+            const isNum1 = /^\d+$/.test(text1);
+            const isNum2 = /^\d+$/.test(text2);
+            
+            if (isNum1 && isNum2) {
+                const num1 = parseInt(text1);
+                const num2 = parseInt(text2);
+                
+                // 连续的数字编号（如01, 02, 03）
+                if (Math.abs(num1 - num2) === 1) {
+                    return false; // 连续编号不算重复，都保留
+                }
+                
+                // 相同数字但格式不同（如1和01）
+                if (num1 === num2) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
     
     /**
