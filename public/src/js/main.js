@@ -22,7 +22,11 @@ const elements = {
     btnSpinner: null,
     notificationArea: null,
     pptxgenStatus: null,
-    html2canvasStatus: null
+    html2canvasStatus: null,
+    conversionResult: null,
+    conversionInfo: null,
+    previewContainer: null,
+    htmlPreview: null
 };
 
 /**
@@ -52,6 +56,10 @@ function initializeElements() {
     elements.notificationArea = document.getElementById('notificationArea');
     elements.pptxgenStatus = document.getElementById('pptxgenjs-status');
     elements.html2canvasStatus = document.getElementById('html2canvas-status');
+    elements.conversionResult = document.getElementById('conversionResult');
+    elements.conversionInfo = document.getElementById('conversionInfo');
+    elements.previewContainer = document.getElementById('previewContainer');
+    elements.htmlPreview = document.getElementById('htmlPreview');
 }
 
 /**
@@ -394,15 +402,60 @@ function showConversionSuccess(result, duration) {
  * 显示转换错误
  */
 function showConversionError(message) {
-    elements.conversionResult.innerHTML = `
-        <div class="error-message">
-            <h4>❌ 转换失败</h4>
-            <p>${message}</p>
-            <p class="error-hint">请检查HTML代码是否正确，或尝试其他转换模式。</p>
-        </div>
-    `;
-    elements.conversionResult.classList.add('show', 'slide-up');
-    elements.conversionResult.style.display = 'block';
+    // 安全检查：确保元素存在
+    if (elements.conversionResult) {
+        elements.conversionResult.innerHTML = `
+            <div class="error-message">
+                <h4>❌ 转换失败</h4>
+                <p>${message}</p>
+                <p class="error-hint">请检查HTML代码是否正确，或尝试其他转换模式。</p>
+            </div>
+        `;
+        elements.conversionResult.classList.add('show', 'slide-up');
+        elements.conversionResult.style.display = 'block';
+    } else {
+        // 如果没有找到转换结果元素，创建一个临时的错误显示
+        console.error('转换失败:', message);
+        
+        // 尝试在页面中找到合适的位置显示错误
+        const body = document.body;
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            border: 2px solid #ff4444;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10000;
+            max-width: 400px;
+        `;
+        errorDiv.innerHTML = `
+            <h4 style="color: #ff4444; margin: 0 0 10px 0;">❌ 转换失败</h4>
+            <p style="margin: 0 0 10px 0;">${message}</p>
+            <p style="margin: 0; color: #666; font-size: 14px;">请检查HTML代码是否正确，或尝试其他转换模式。</p>
+            <button onclick="this.parentElement.remove()" style="
+                margin-top: 15px;
+                padding: 8px 15px;
+                background: #ff4444;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            ">关闭</button>
+        `;
+        body.appendChild(errorDiv);
+        
+        // 5秒后自动移除
+        setTimeout(() => {
+            if (errorDiv.parentElement) {
+                errorDiv.remove();
+            }
+        }, 5000);
+    }
     
     showNotification('转换失败: ' + message, 'error');
 }

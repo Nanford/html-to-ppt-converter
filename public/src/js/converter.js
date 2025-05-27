@@ -117,7 +117,7 @@ class HtmlToPptConverter {
                 details: {
                     mode: this.options.mode,
                     slideCount: 1,
-                    fileSize: 'N/A'
+                    fileName: this.options.title + '.pptx'
                 }
             };
             
@@ -147,14 +147,17 @@ class HtmlToPptConverter {
 
             const { captureTarget, finalWidth, finalHeight } = this._calculateCaptureDetails(element, '截图模式');
 
-            // 如果启用了文字提取选项，使用混合模式的方法
+            // 如果启用了文字提取选项，使用分阶段处理
             if (this.options.extractText) {
-                console.log('截图模式 + 文字提取：生成背景图片...');
+                console.log('截图模式 + 文字提取：采用分阶段处理...');
+                
+                // ===== 第一阶段：生成背景图 =====
+                this.updateStatus('extract', 'processing', '第一阶段：生成背景图片...');
+                console.log('🎨 第一阶段：生成背景图片...');
                 
                 // 保存文字内容并临时清空
                 const originalTextContents = this.temporarilyHideTextContent(captureTarget);
 
-                this.updateStatus('extract', 'processing', `正在生成背景图片 ${finalWidth}x${finalHeight}...`);
                 const canvas = await html2canvas(captureTarget, {
                     width: finalWidth,
                     height: finalHeight,
@@ -170,7 +173,6 @@ class HtmlToPptConverter {
                 });
 
                 const imageData = canvas.toDataURL('image/png');
-                this.updateStatus('extract', 'processing', '背景图片完成，添加到PPT...');
                 
                 slide.addImage({
                     data: imageData,
@@ -184,20 +186,25 @@ class HtmlToPptConverter {
                         h: this.options.slideHeight
                     }
                 });
+                console.log('✅ 第一阶段完成：背景图片已添加');
 
                 // 恢复文字内容
                 this.restoreTextContent(originalTextContents);
+                console.log('✅ 文字内容已恢复');
 
-                // 等待DOM稳定后提取文字
-                await new Promise(resolve => setTimeout(resolve, 300));
+                // ===== 第二阶段：等待DOM稳定，然后提取文字 =====
+                this.updateStatus('extract', 'processing', '第二阶段：等待DOM稳定...');
+                console.log('🔄 第二阶段：等待DOM稳定，准备提取文字...');
                 
-                this.updateStatus('extract', 'processing', '提取可编辑文字...');
-                console.log('截图模式：提取文字元素...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // 添加可编辑文字
+                this.updateStatus('extract', 'processing', '第二阶段：提取可编辑文字...');
+                console.log('📝 第二阶段：开始文字识别和提取...');
+                
+                // ===== 第三阶段：文字识别和提取 =====
                 await this.addEditableText(slide, captureTarget);
                 
-                console.log('截图模式 + 文字提取完成');
+                console.log('✅ 截图模式 + 文字提取完成');
             } else {
                 // 传统的纯截图模式
                 this.updateStatus('extract', 'processing', `正在截取完整图片 ${finalWidth}x${finalHeight}...`);
@@ -278,14 +285,17 @@ class HtmlToPptConverter {
 
             const { captureTarget: contentElement, finalWidth: bgFinalWidth, finalHeight: bgFinalHeight } = this._calculateCaptureDetails(element, '混合模式背景');
             
-            // 1. 处理背景（除文字外的所有视觉元素）
+            // 保存原始内容的引用，用于后续恢复
+            let originalTextContents = null;
+            
+            // ===== 第一阶段：生成背景图 =====
             if (this.options.preserveBackground) {
-                this.updateStatus('extract', 'processing', '正在生成背景截图（保留所有视觉元素）...');
+                this.updateStatus('extract', 'processing', '第一阶段：生成背景截图（保留所有视觉元素）...');
                 try {
-                    console.log('混合模式：生成背景截图（只清空文字内容，保留所有其他视觉元素）...');
+                    console.log('🎨 第一阶段：生成背景截图（只清空文字内容，保留所有其他视觉元素）...');
                     
                     // 保存文字内容并临时清空
-                    const originalTextContents = this.temporarilyHideTextContent(contentElement);
+                    originalTextContents = this.temporarilyHideTextContent(contentElement);
 
                     console.log(`混合模式背景截图，目标元素: ${contentElement.tagName}.${contentElement.className}, 计划尺寸: ${bgFinalWidth}x${bgFinalHeight}`);
                     const canvas = await html2canvas(contentElement, {
@@ -307,10 +317,8 @@ class HtmlToPptConverter {
                         w: this.options.slideWidth, h: this.options.slideHeight,
                         sizing: { type: 'contain', w: this.options.slideWidth, h: this.options.slideHeight }
                     });
-                    console.log('混合模式：背景截图已添加（包含所有非文字视觉元素）。');
+                    console.log('✅ 第一阶段完成：背景截图已添加（包含所有非文字视觉元素）。');
                     
-                    // 恢复文字内容
-                    this.restoreTextContent(originalTextContents);
                 } catch (bgError) {
                     console.error('混合模式背景截图失败:', bgError);
                     this.updateStatus('extract', 'warning', '背景截图失败，将继续处理文本。');
@@ -320,28 +328,50 @@ class HtmlToPptConverter {
                 this.updateStatus('extract', 'processing', '跳过背景处理...');
             }
             
-            // 2. 处理文字提取
+            // ===== 第二阶段：恢复文字并等待稳定 =====
             if (this.options.extractText) {
                 try {
-                    this.updateStatus('extract', 'processing', '提取可编辑文字...');
-                    console.log('混合模式：提取文本元素...');
+                    this.updateStatus('extract', 'processing', '第二阶段：恢复文字内容...');
+                    console.log('🔄 第二阶段：恢复文字内容...');
                     
-                    // 等待DOM稳定
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    // 先恢复文字内容（如果之前进行了背景截图的话）
+                    if (originalTextContents) {
+                        this.restoreTextContent(originalTextContents);
+                        console.log('✅ 文字内容已恢复');
+                    }
                     
-                    // 添加可编辑文字
-                    await this.addEditableText(slide, contentElement);
+                    // 等待DOM稳定，确保文字已经完全恢复
+                    this.updateStatus('extract', 'processing', '第二阶段：等待DOM稳定...');
+                    console.log('🔄 第二阶段：等待DOM稳定，准备提取文字...');
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // 增加等待时间
+                    
+                    this.updateStatus('extract', 'processing', '第二阶段：开始提取可编辑文字...');
+                    console.log('📝 第二阶段：开始文字识别和提取...');
+                    
+                    // ===== 第三阶段：文字识别和提取 =====
+                    const extractSuccess = await this.addEditableText(slide, contentElement);
+                    
+                    if (extractSuccess) {
+                        console.log('✅ 第二阶段完成：文字提取成功');
+                    } else {
+                        console.log('⚠️ 第二阶段完成：文字提取失败，但背景已处理');
+                    }
                     
                 } catch (extractError) {
                     console.warn('混合模式文本提取失败:', extractError.message);
                     this.updateStatus('extract', 'warning', '文本提取失败，但背景已处理完成。');
                 }
             } else {
+                // 如果不提取文字，也要恢复文字内容（用于后续可能的操作）
+                if (originalTextContents) {
+                    this.restoreTextContent(originalTextContents);
+                    console.log('✅ 文字内容已恢复（虽然不提取文字）');
+                }
                 console.log('混合模式：用户选择不提取文字，跳过文字处理');
                 this.updateStatus('extract', 'processing', '跳过文字提取...');
             }
             
-            // 3. 检查处理结果
+            // ===== 最终阶段：检查处理结果 =====
             if (!this.options.preserveBackground && !this.options.extractText) {
                 console.warn('混合模式：用户既不保留背景也不提取文字，生成空白幻灯片');
                 this.updateStatus('extract', 'warning', '既未保留背景也未提取文字，生成空白幻灯片');
@@ -352,7 +382,7 @@ class HtmlToPptConverter {
                 this.updateStatus('extract', 'success', `混合模式完成：包含${resultParts.join(' + ')}`);
             }
             
-            console.log('混合模式处理完成');
+            console.log('🎉 混合模式处理完成');
         } catch (error) {
             console.error('混合模式失败:', error);
             this.updateStatus('extract', 'error', `混合模式失败: ${error.message}`);
@@ -368,15 +398,12 @@ class HtmlToPptConverter {
         const originalContents = new Map();
         
         textElements.forEach(el => {
-            // 保存原始文字内容
-            const textNodes = this.getDirectTextNodes(el);
-            const originalTexts = textNodes.map(node => node.textContent);
-            originalContents.set(el, originalTexts);
+            // 保存原始文字内容 - 使用简单的textContent方法
+            const originalText = el.textContent;
+            originalContents.set(el, originalText);
             
-            // 清空文字内容，但保留所有其他内容（样式、子元素等）
-            textNodes.forEach(node => {
-                node.textContent = '';
-            });
+            // 清空文字内容
+            el.textContent = '';
         });
         
         console.log(`已临时清空 ${textElements.length} 个元素的文字内容，保留所有视觉样式和装饰元素`);
@@ -387,15 +414,21 @@ class HtmlToPptConverter {
      * 恢复文字内容
      */
     restoreTextContent(originalContents) {
-        originalContents.forEach((originalTexts, el) => {
-            const textNodes = this.getDirectTextNodes(el);
-            textNodes.forEach((node, index) => {
-                if (index < originalTexts.length) {
-                    node.textContent = originalTexts[index];
-                }
-            });
+        originalContents.forEach((originalText, el) => {
+            // 直接恢复文字内容
+            el.textContent = originalText;
         });
         console.log(`已恢复 ${originalContents.size} 个元素的文字内容`);
+        
+        // 添加调试信息，验证恢复是否成功
+        console.log('验证恢复结果：');
+        let count = 0;
+        originalContents.forEach((originalText, el) => {
+            const currentText = el.textContent;
+            console.log(`  元素 ${el.tagName}.${el.className}: 原始="${originalText}" 当前="${currentText}" 匹配=${originalText === currentText}`);
+            if (originalText === currentText) count++;
+        });
+        console.log(`恢复成功率: ${count}/${originalContents.size} (${((count/originalContents.size)*100).toFixed(1)}%)`);
     }
     
     /**
@@ -425,112 +458,602 @@ class HtmlToPptConverter {
     }
     
     /**
-     * 添加可编辑文字到PPT
+     * 添加可编辑文字到PPT - 增强版本
      */
     async addEditableText(slide, contentElement) {
-        // 重新获取内容区域的位置信息
-        const updatedContentRect = contentElement.getBoundingClientRect();
-        console.log('内容区域位置:', updatedContentRect);
+        console.log('🔍 开始精确提取文字元素...');
+        console.log('内容元素:', contentElement);
+                    
+        // 重新获取内容区域的位置信息 - 使用可见区域
+        const renderArea = document.getElementById('hiddenRenderArea');
+        let updatedContentRect;
         
-        // 查找文本元素，使用更精确的选择器
-        const textElements = contentElement.querySelectorAll('.main-title, .sub-title, .presenter-name, .presentation-date, h1, h2, h3, p, span, div');
-        console.log('找到文本元素数量:', textElements.length);
+        // 优先使用渲染区域的位置，如果不可用则使用内容元素的位置
+        if (renderArea && renderArea.getBoundingClientRect().width > 0) {
+            updatedContentRect = renderArea.getBoundingClientRect();
+            console.log('📐 使用渲染区域位置:', updatedContentRect);
+        } else {
+            // 如果内容元素在屏幕外，尝试获取其在渲染时的实际尺寸
+            const tempRect = contentElement.getBoundingClientRect();
+            if (tempRect.x < -1000 || tempRect.y < -1000) {
+                // 元素在屏幕外，使用计算的尺寸
+                updatedContentRect = {
+                    left: 0,
+                    top: 0,
+                    width: Math.max(tempRect.width, 1200),
+                    height: Math.max(tempRect.height, 675),
+                    x: 0,
+                    y: 0
+                };
+                console.log('📐 元素在屏幕外，使用计算尺寸:', updatedContentRect);
+            } else {
+                updatedContentRect = tempRect;
+                console.log('📐 内容区域位置:', updatedContentRect);
+            }
+        }
         
-        for (const textEl of textElements) {
+        // 第一步：收集所有可能的文字元素
+        const allTextElements = this.collectAllTextElements(contentElement);
+        console.log(`🎯 第一步：找到所有潜在文字元素 ${allTextElements.length} 个`);
+        
+        // 打印前几个元素的详细信息 - 修复调试输出
+        allTextElements.slice(0, 5).forEach((item, index) => {
+            const actualText = item.element.textContent?.trim() || '';
+            console.log(`  ${index + 1}. ${item.selector} - "${actualText.substring(0, 30)}${actualText.length > 30 ? '...' : ''}"`);
+        });
+        
+        // 第二步：过滤和分析文字元素
+        const validTextElements = this.filterValidTextElements(allTextElements);
+        console.log(`✅ 第二步：过滤后有效文字元素 ${validTextElements.length} 个`);
+        
+        // 如果过滤后没有元素，显示被过滤的原因
+        if (validTextElements.length === 0 && allTextElements.length > 0) {
+            console.warn('⚠️ 所有文字元素都被过滤掉了，检查过滤条件...');
+            allTextElements.forEach((item, index) => {
+                const el = item.element;
+                const actualText = el.textContent?.trim() || '';
+                const isVisible = this.isElementVisible(el);
+                const hasMeaningful = this.hasMeaningfulTextContent(el);
+                const rect = el.getBoundingClientRect();
+                const hasSize = rect.width > 0 && rect.height > 0;
+                const isNotDuplicate = !this.isNestedDuplicate(el, allTextElements);
+                
+                console.log(`  ${index + 1}. "${actualText.substring(0, 20)}..." 
+                    可见: ${isVisible}, 有意义: ${hasMeaningful}, 有大小: ${hasSize}, 非重复: ${isNotDuplicate}`);
+                
+                // 详细分析为什么不被认为是有意义的
+                if (!hasMeaningful && actualText.length > 0) {
+                    console.log(`    文字内容: "${actualText}", 长度: ${actualText.length}, 中文检测: ${/[\u4e00-\u9fff]/.test(actualText)}, 英文数字检测: ${/\w/.test(actualText)}`);
+                }
+            });
+        }
+        
+        // 第三步：按层级和重要性排序
+        const sortedTextElements = this.sortTextElementsByPriority(validTextElements);
+        console.log(`📊 第三步：按优先级排序完成`);
+        
+        // 第四步：精确提取文字并添加到PPT
+        let addedCount = 0;
+        for (const textItem of sortedTextElements) {
             try {
-                const textContent = textEl.textContent.trim();
-                if (!textContent || !this.hasMeaningfulTextContent(textEl)) continue;
+                const actualText = textItem.element.textContent?.trim() || '';
+                console.log(`🔄 尝试提取: "${actualText.substring(0, 20)}..."`);
+                const success = await this.extractAndAddTextElement(slide, textItem, contentElement, updatedContentRect);
+                if (success) {
+                    addedCount++;
+                } else {
+                    console.warn(`❌ 提取失败: "${actualText.substring(0, 20)}..."`);
+                }
+            } catch (textError) {
+                console.error(`💥 处理文字元素失败: ${textError.message}`);
+            }
+        }
+        
+        console.log(`🎉 文字提取完成：成功添加 ${addedCount} 个文字元素到PPT`);
+        
+        // 如果没有添加任何文字，尝试简化的提取方法
+        if (addedCount === 0) {
+            console.warn('🔧 没有提取到文字，尝试简化方法...');
+            const fallbackCount = await this.fallbackTextExtraction(slide, contentElement, updatedContentRect);
+            return fallbackCount > 0;
+        }
+        
+        return addedCount > 0;
+    }
+    
+    /**
+     * 检查元素是否包含有意义的文字内容 - 修复中文支持
+     */
+    hasMeaningfulTextContent(element) {
+        const text = element.textContent?.trim();
+        
+        if (!text) {
+            return false;
+        }
+        
+        // 放宽长度限制，支持单个字符（如中文）
+        if (text.length < 1) {
+            return false;
+        }
+        
+        // 过滤掉只包含特殊字符的内容，但保留中文、英文、数字
+        if (/^[\s\-_.,!?;:()[\]{}'"]+$/.test(text)) {
+            return false;
+        }
+        
+        // 检查是否包含实际的文字内容（中文、英文、数字）
+        // 修复正则表达式，确保正确匹配中文
+        const hasChinese = /[\u4e00-\u9fff]/.test(text);
+        const hasAlphaNum = /[a-zA-Z0-9]/.test(text);
+        
+        if (hasChinese || hasAlphaNum) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 检查是否为嵌套重复元素 - 进一步简化逻辑
+     */
+    isNestedDuplicate(element, allElements) {
+        const elementText = element.textContent.trim();
+        if (!elementText) return true;
+        
+        // 对于重要的元素类型，不进行重复检查
+        const importantSelectors = ['.main-title', '.sub-title', '.presenter-name', '.presentation-date', 'h1', 'h2', 'h3'];
+        const elementClasses = element.className || '';
+        const elementTag = element.tagName.toLowerCase();
+        
+        for (const selector of importantSelectors) {
+            if (selector.startsWith('.') && elementClasses.includes(selector.slice(1))) {
+                return false; // 重要元素不认为是重复的
+            }
+            if (selector === elementTag) {
+                return false; // 重要元素不认为是重复的
+            }
+        }
+        
+        // 简化重复检查：只检查完全相同的文字内容且为直接父子关系
+        for (const item of allElements) {
+            const otherEl = item.element;
+            if (otherEl === element) continue;
+            
+            // 如果其他元素是当前元素的直接父元素
+            if (otherEl === element.parentElement) {
+                const otherText = otherEl.textContent.trim();
+                // 只有在文字完全相同且长度较短时才认为是重复
+                if (otherText === elementText && elementText.length < 20) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 后备文字提取方法 - 修复错误处理
+     */
+    async fallbackTextExtraction(slide, contentElement, contentRect) {
+        console.log('🔄 启动后备文字提取方法...');
+        
+        // 使用最简单的选择器
+        const simpleSelectors = ['h1', 'h2', 'h3', 'p', '.main-title', '.sub-title'];
+        let addedCount = 0;
+        
+        for (const selector of simpleSelectors) {
+            const elements = contentElement.querySelectorAll(selector);
+            console.log(`查找选择器 "${selector}": 找到 ${elements.length} 个元素`);
+            
+            for (const el of elements) {
+                const text = el.textContent?.trim();
+                if (!text) continue;
                 
-                const rect = textEl.getBoundingClientRect();
-                const styles = window.getComputedStyle(textEl);
+                console.log(`处理元素: "${text.substring(0, 30)}..."`);
                 
-                // 检查元素是否可见且包含直接文字内容
-                if (!this.isElementVisible(textEl) || rect.width === 0 || rect.height === 0) {
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) {
+                    console.log('  跳过：元素大小为0');
                     continue;
                 }
                 
-                // 只处理直接包含文字的元素，跳过只包含子元素的容器
-                if (!this.hasDirectTextContent(textEl)) {
-                    continue;
-                }
+                // 修复位置计算 - 处理元素在屏幕外的情况
+                let relativeX, relativeY;
                 
-                // 计算相对于内容区域的位置
-                const relativeX = (rect.left - updatedContentRect.left) / updatedContentRect.width;
-                const relativeY = (rect.top - updatedContentRect.top) / updatedContentRect.height;
-                const relativeW = rect.width / updatedContentRect.width;
-                const relativeH = rect.height / updatedContentRect.height;
+                if (contentRect.x < -1000 || contentRect.y < -1000) {
+                    // 内容在屏幕外，使用简化的位置计算
+                    // 假设元素在容器内的相对位置
+                    relativeX = Math.max(0, Math.min(1, (rect.left + 10000) / contentRect.width));
+                    relativeY = Math.max(0, Math.min(1, (rect.top + 10000) / contentRect.height));
+                    console.log(`  屏幕外元素位置计算: rect(${rect.left}, ${rect.top}), 相对位置(${relativeX.toFixed(2)}, ${relativeY.toFixed(2)})`);
+                } else {
+                    // 正常位置计算
+                    relativeX = (rect.left - contentRect.left) / contentRect.width;
+                    relativeY = (rect.top - contentRect.top) / contentRect.height;
+                }
                 
                 // 确保位置在有效范围内
-                if (relativeX >= 0 && relativeY >= 0 && relativeX < 1 && relativeY < 1 && relativeW > 0 && relativeH > 0) {
+                if (relativeX < 0 || relativeY < 0 || relativeX >= 1 || relativeY >= 1) {
+                    console.log(`  跳过：位置超出范围 (${relativeX.toFixed(2)}, ${relativeY.toFixed(2)})`);
                     
-                    // 根据类名调整字号
-                    let fontSize = this.calculateFontSize(textEl, styles);
-                    
-                    // 计算PPT中的位置
-                    const pptX = relativeX * this.options.slideWidth;
-                    const pptY = relativeY * this.options.slideHeight;
-                    const pptW = Math.max(1, relativeW * this.options.slideWidth);
-                    const pptH = Math.max(0.3, relativeH * this.options.slideHeight);
-                    
-                    const textOptions = {
+                    // 尝试修正位置
+                    relativeX = Math.max(0, Math.min(0.9, relativeX));
+                    relativeY = Math.max(0, Math.min(0.9, relativeY));
+                    console.log(`  修正后位置: (${relativeX.toFixed(2)}, ${relativeY.toFixed(2)})`);
+                }
+                
+                const pptX = relativeX * this.options.slideWidth;
+                const pptY = relativeY * this.options.slideHeight;
+                const pptW = Math.max(1, (rect.width / contentRect.width) * this.options.slideWidth);
+                const pptH = Math.max(0.3, (rect.height / contentRect.height) * this.options.slideHeight);
+                
+                try {
+                    slide.addText(text, {
                         x: pptX,
                         y: pptY,
                         w: pptW,
                         h: pptH,
-                        fontSize: fontSize,
-                        color: this.rgbToHex(styles.color || '#000000'),
-                        bold: this.isBold(styles.fontWeight),
-                        fontFace: this.getFontFamily(styles.fontFamily),
-                        align: this.getTextAlign(styles.textAlign),
+                        fontSize: this.calculateFallbackFontSize(el),
+                        color: '000000',
+                        fontFace: 'Calibri',
+                        align: 'left',
                         valign: 'top',
-                        wrap: true,
-                        margin: 0
-                    };
+                        wrap: true
+                    });
                     
-                    // 根据元素类型调整样式
-                    if (textEl.classList.contains('main-title') || textEl.tagName === 'H1') {
-                        textOptions.fontSize = Math.max(44, fontSize);
-                        textOptions.bold = true;
-                    } else if (textEl.classList.contains('sub-title') || textEl.tagName === 'H2') {
-                        textOptions.fontSize = Math.max(24, fontSize * 0.8);
-                    } else if (textEl.classList.contains('presenter-name') || textEl.classList.contains('presentation-date')) {
-                        textOptions.fontSize = Math.max(16, fontSize * 0.7);
-                    }
-                    
-                    slide.addText(textContent, textOptions);
-                    console.log(`添加文本 "${textContent.substring(0, 20)}..." 位置: (${pptX.toFixed(2)}, ${pptY.toFixed(2)}) 字号: ${textOptions.fontSize}`);
+                    addedCount++;
+                    console.log(`✅ 后备方法成功添加: "${text.substring(0, 20)}..." 位置: (${pptX.toFixed(2)}, ${pptY.toFixed(2)})`);
+                } catch (error) {
+                    console.error(`❌ 后备方法失败: ${error.message}`);
                 }
-                
-            } catch (textError) {
-                console.warn('处理文本元素失败:', textError.message);
+            }
+        }
+        
+        console.log(`🎉 后备方法完成：成功添加 ${addedCount} 个文字元素`);
+        return addedCount;
+    }
+    
+    /**
+     * 计算后备方法的字体大小
+     */
+    calculateFallbackFontSize(element) {
+        if (element.classList.contains('main-title') || element.tagName === 'H1') {
+            return 36;
+        } else if (element.classList.contains('sub-title') || element.tagName === 'H2') {
+            return 28;
+        } else if (element.tagName === 'H3') {
+            return 24;
+        } else if (element.classList.contains('presenter-name')) {
+            return 18;
+        } else if (element.classList.contains('presentation-date')) {
+            return 14;
+        } else {
+            return 16;
+        }
+    }
+    
+    /**
+     * 收集所有可能的文字元素
+     */
+    collectAllTextElements(container) {
+        const textElements = [];
+        const visited = new Set();
+        
+        // 定义文字元素的选择器，按优先级排序
+        const textSelectors = [
+            // 高优先级：明确的文字元素
+            '.main-title', '.sub-title', '.title', '.heading',
+            '.presenter-name', '.presentation-date', '.author',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            
+            // 中优先级：常见文字容器
+            'p', '.text', '.content-text', '.description',
+            '.label', '.caption', '.item-text',
+            
+            // 低优先级：可能包含文字的元素
+            'span', 'div', 'a', 'button', 'td', 'th', 'li',
+            'em', 'strong', 'b', 'i', 'small'
+        ];
+        
+        // 逐个选择器查找元素
+        textSelectors.forEach(selector => {
+            try {
+                const elements = container.querySelectorAll(selector);
+                elements.forEach(el => {
+                    if (!visited.has(el)) {
+                        visited.add(el);
+                        textElements.push({
+                            element: el,
+                            selector: selector,
+                            priority: this.getElementPriority(selector)
+                        });
+                    }
+                });
+            } catch (error) {
+                console.warn(`选择器 "${selector}" 查询失败:`, error);
+            }
+        });
+        
+        // 额外检查：寻找直接包含文字但没有被选择器覆盖的元素
+        this.findAdditionalTextElements(container, textElements, visited);
+        
+        return textElements;
+    }
+    
+    /**
+     * 获取元素优先级
+     */
+    getElementPriority(selector) {
+        const priorityMap = {
+            '.main-title': 10, '.title': 9, '.heading': 9,
+            'h1': 8, 'h2': 7, 'h3': 6,
+            '.sub-title': 8, '.presenter-name': 7, '.presentation-date': 6,
+            'p': 5, '.text': 5, '.content-text': 5,
+            '.description': 4, '.label': 4, '.caption': 4,
+            'span': 3, 'div': 2, 'a': 3,
+            'button': 3, 'em': 3, 'strong': 3
+        };
+        return priorityMap[selector] || 1;
+    }
+    
+    /**
+     * 寻找额外的文字元素
+     */
+    findAdditionalTextElements(container, existingElements, visited) {
+        const walker = document.createTreeWalker(
+            container,
+            NodeFilter.SHOW_ELEMENT,
+            {
+                acceptNode: (node) => {
+                    if (visited.has(node)) return NodeFilter.FILTER_REJECT;
+                    if (!this.hasDirectTextContent(node)) return NodeFilter.FILTER_REJECT;
+                    if (!this.hasMeaningfulTextContent(node)) return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            }
+        );
+        
+        let node;
+        while (node = walker.nextNode()) {
+            if (!visited.has(node)) {
+                visited.add(node);
+                existingElements.push({
+                    element: node,
+                    selector: 'direct-text',
+                    priority: 1
+                });
             }
         }
     }
     
     /**
-     * 检查元素是否直接包含文字内容（不是通过子元素）
+     * 过滤有效的文字元素
+     */
+    filterValidTextElements(textElements) {
+        return textElements.filter(item => {
+            const el = item.element;
+            
+            // 基本可见性检查
+            if (!this.isElementVisible(el)) return false;
+            
+            // 检查是否有有意义的文字内容
+            if (!this.hasMeaningfulTextContent(el)) return false;
+            
+            // 检查元素大小
+            const rect = el.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return false;
+            
+            // 避免重复的嵌套元素
+            if (this.isNestedDuplicate(el, textElements)) return false;
+            
+            return true;
+        });
+    }
+    
+    /**
+     * 按优先级排序文字元素
+     */
+    sortTextElementsByPriority(textElements) {
+        return textElements.sort((a, b) => {
+            // 首先按优先级排序（高优先级在前）
+            if (a.priority !== b.priority) {
+                return b.priority - a.priority;
+            }
+            
+            // 优先级相同时，按位置排序（从上到下，从左到右）
+            const aRect = a.element.getBoundingClientRect();
+            const bRect = b.element.getBoundingClientRect();
+            
+            if (Math.abs(aRect.top - bRect.top) > 10) {
+                return aRect.top - bRect.top; // 从上到下
+            }
+            
+            return aRect.left - bRect.left; // 从左到右
+        });
+    }
+    
+    /**
+     * 提取并添加单个文字元素到PPT
+     */
+    async extractAndAddTextElement(slide, textItem, contentElement, contentRect) {
+        const textEl = textItem.element;
+        const textContent = textEl.textContent.trim();
+        
+        if (!textContent) return false;
+        
+        const rect = textEl.getBoundingClientRect();
+        const styles = window.getComputedStyle(textEl);
+        
+        // 计算相对于内容区域的位置
+        const relativeX = (rect.left - contentRect.left) / contentRect.width;
+        const relativeY = (rect.top - contentRect.top) / contentRect.height;
+        const relativeW = rect.width / contentRect.width;
+        const relativeH = rect.height / contentRect.height;
+        
+        // 确保位置在有效范围内
+        if (relativeX < 0 || relativeY < 0 || relativeX >= 1 || relativeY >= 1 || relativeW <= 0 || relativeH <= 0) {
+            console.warn(`文字元素位置超出范围: "${textContent.substring(0, 20)}..."`);
+            return false;
+        }
+        
+        // 计算PPT中的位置
+        const pptX = relativeX * this.options.slideWidth;
+        const pptY = relativeY * this.options.slideHeight;
+        const pptW = Math.max(0.5, relativeW * this.options.slideWidth);
+        const pptH = Math.max(0.2, relativeH * this.options.slideHeight);
+        
+        // 计算字体大小
+        const fontSize = this.calculateOptimalFontSize(textEl, styles, textItem.priority);
+        
+        // 构建文字选项
+        const textOptions = {
+            x: pptX,
+            y: pptY,
+            w: pptW,
+            h: pptH,
+            fontSize: fontSize,
+            color: this.rgbToHex(styles.color || '#000000'),
+            bold: this.isBold(styles.fontWeight),
+            italic: styles.fontStyle === 'italic',
+            fontFace: this.getFontFamily(styles.fontFamily),
+            align: this.getTextAlign(styles.textAlign),
+            valign: this.getVerticalAlign(textEl, styles),
+            wrap: true,
+            margin: 0,
+            shrinkText: true // 允许自动调整字体大小以适应文本框
+        };
+        
+        // 根据元素类型和优先级进行特殊调整
+        this.applySpecialTextFormatting(textOptions, textEl, textItem.priority);
+        
+        // 添加文字到PPT
+        slide.addText(textContent, textOptions);
+        
+        // 记录详细信息
+        console.log(`✓ 添加文字 [${textItem.selector}]: "${textContent.substring(0, 20)}..." 
+            位置: (${pptX.toFixed(2)}, ${pptY.toFixed(2)}) 
+            大小: ${pptW.toFixed(2)}x${pptH.toFixed(2)} 
+            字号: ${fontSize} 
+            优先级: ${textItem.priority}`);
+        
+        return true;
+    }
+    
+    /**
+     * 计算最优字体大小
+     */
+    calculateOptimalFontSize(element, styles, priority) {
+        let baseFontSize = parseInt(styles.fontSize) || 16;
+        
+        // 根据元素类型调整基础字号
+        if (element.classList.contains('main-title') || element.tagName === 'H1') {
+            return Math.max(36, baseFontSize * 1.5);
+        } else if (element.classList.contains('sub-title') || element.tagName === 'H2') {
+            return Math.max(28, baseFontSize * 1.2);
+        } else if (element.tagName === 'H3') {
+            return Math.max(24, baseFontSize * 1.1);
+        } else if (element.classList.contains('presenter-name') || element.classList.contains('presentation-date')) {
+            return Math.max(14, baseFontSize * 0.9);
+        } else if (priority >= 8) {
+            // 高优先级元素
+            return Math.max(20, baseFontSize);
+        } else if (priority >= 5) {
+            // 中优先级元素
+            return Math.max(16, baseFontSize * 0.95);
+        } else {
+            // 低优先级元素
+            return Math.max(12, baseFontSize * 0.8);
+        }
+    }
+    
+    /**
+     * 获取垂直对齐方式
+     */
+    getVerticalAlign(element, styles) {
+        // 根据元素类型推断垂直对齐
+        if (element.classList.contains('main-title') || element.tagName.match(/^H[1-3]$/)) {
+            return 'middle';
+        }
+        
+        const lineHeight = styles.lineHeight;
+        if (lineHeight === 'normal' || parseFloat(lineHeight) <= 1.2) {
+            return 'middle';
+        }
+        
+        return 'top';
+    }
+    
+    /**
+     * 应用特殊文字格式
+     */
+    applySpecialTextFormatting(textOptions, element, priority) {
+        // 主标题特殊格式
+        if (element.classList.contains('main-title') || element.tagName === 'H1') {
+            textOptions.bold = true;
+            textOptions.fontSize = Math.max(textOptions.fontSize, 40);
+        }
+        
+        // 副标题特殊格式
+        else if (element.classList.contains('sub-title') || element.tagName === 'H2') {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 24);
+        }
+        
+        // 演讲者信息特殊格式
+        else if (element.classList.contains('presenter-name')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 16);
+            textOptions.bold = true;
+        }
+        
+        // 日期信息特殊格式
+        else if (element.classList.contains('presentation-date')) {
+            textOptions.fontSize = Math.max(textOptions.fontSize, 14);
+            if (textOptions.color === '000000') {
+                textOptions.color = '666666'; // 使用灰色
+            }
+        }
+        
+        // 根据优先级调整
+        if (priority >= 8) {
+            textOptions.bold = textOptions.bold || true;
+        }
+    }
+    
+    /**
+     * 检查元素是否直接包含文字内容（不是通过子元素） - 放宽条件
      */
     hasDirectTextContent(element) {
+        // 检查是否有直接的文本节点
         for (let child of element.childNodes) {
             if (child.nodeType === Node.TEXT_NODE && child.textContent.trim()) {
                 return true;
             }
         }
+        
+        // 如果没有直接文本节点，但只有一个子元素且该子元素包含文字，也算作有效
+        const children = Array.from(element.children);
+        if (children.length === 1 && children[0].textContent.trim()) {
+            // 检查子元素是否为简单的文字容器（如span, em, strong等）
+            const childTag = children[0].tagName.toLowerCase();
+            if (['span', 'em', 'strong', 'b', 'i', 'small', 'sub', 'sup'].includes(childTag)) {
+                return true;
+            }
+        }
+        
+        // 对于特定的元素类型，放宽限制
+        const elementTag = element.tagName.toLowerCase();
+        const elementClass = element.className || '';
+        
+        // 标题元素和重要类名的元素，即使通过子元素包含文字也算有效
+        if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(elementTag) ||
+            elementClass.includes('title') || 
+            elementClass.includes('heading') ||
+            elementClass.includes('presenter') ||
+            elementClass.includes('date')) {
+            return element.textContent.trim().length > 0;
+        }
+        
         return false;
-    }
-    
-    /**
-     * 检查元素是否包含有意义的文字内容
-     */
-    hasMeaningfulTextContent(element) {
-        const text = element.textContent?.trim();
-        if (!text) return false;
-        
-        // 过滤掉只包含特殊字符的内容
-        if (text.length < 2) return false;
-        if (/^[\s\-_.,!?;:()[\]{}'"]+$/.test(text)) return false;
-        
-        return true;
     }
     
     /**
@@ -593,24 +1116,10 @@ class HtmlToPptConverter {
         return textElements;
     }
     
-    // 计算合适的字号
+    // 计算合适的字号 - 保持原有方法作为后备
     calculateFontSize(element, styles) {
-        try {
-            let baseFontSize = parseInt(styles.fontSize) || 16;
-            
-            // 根据元素类型调整基础字号
-            if (element.classList.contains('main-title') || element.tagName === 'H1') {
-                return Math.max(40, baseFontSize * 1.2);
-            } else if (element.classList.contains('sub-title') || element.tagName === 'H2') {
-                return Math.max(24, baseFontSize);
-            } else if (element.classList.contains('presenter-name') || element.classList.contains('presentation-date')) {
-                return Math.max(14, baseFontSize * 0.8);
-            } else {
-                return Math.max(16, baseFontSize);
-            }
-        } catch (error) {
-            return 16;
-        }
+        // 调用新的优化方法
+        return this.calculateOptimalFontSize(element, styles, 5); // 默认中等优先级
     }
     
     // 判断是否为粗体
