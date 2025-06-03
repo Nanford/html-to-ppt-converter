@@ -127,7 +127,318 @@ function setupEventListeners() {
         // elements.previewBtn.addEventListener('click', previewHTML); // 假设有 previewHTML 函数
     }
     if (elements.loadExampleBtn) {
-        // elements.loadExampleBtn.addEventListener('click', loadSampleHTML); // 假设有 loadSampleHTML 函数
+        elements.loadExampleBtn.addEventListener('click', () => {
+            const exampleHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业数字化转型解决方案</title>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        /* 主容器 - 16:9 比例 - 优化版本 */
+        .main-container {
+            width: 1920px;
+            height: 1080px;
+            margin: 0 auto;
+            background: #2c3e50;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 主背景层 */
+        .main-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
+        }
+        
+        /* 纹理图案层 - 优化为更简单的实现 */
+        .texture-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
+                linear-gradient(-45deg, rgba(255,255,255,0.02) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.02) 75%),
+                linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.02) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        
+        /* 装饰圆圈 - 使用border和伪元素确保兼容性 */
+        .decoration-circle {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(230,126,34,0.3);
+        }
+        
+        .circle-large {
+            width: 400px;
+            height: 400px;
+            top: -200px;
+            right: -200px;
+        }
+        
+        .circle-medium {
+            width: 250px;
+            height: 250px;
+            bottom: -125px;
+            left: -125px;
+            border-color: rgba(255,255,255,0.15);
+        }
+        
+        .circle-small {
+            width: 150px;
+            height: 150px;
+            top: 20%;
+            left: 10%;
+            border-color: rgba(230,126,34,0.2);
+        }
+        
+        /* 数据点装饰元素 - 确保可见性 */
+        .data-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #e67e22;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(230,126,34,0.5);
+        }
+        
+        .dot-1 { top: 25%; left: 20%; }
+        .dot-2 { top: 50%; right: 15%; }
+        .dot-3 { bottom: 30%; left: 12%; }
+        .dot-4 { top: 70%; right: 25%; }
+        .dot-5 { bottom: 15%; right: 40%; }
+        
+        /* 装饰线条 - 使用CSS绘制 */
+        .decoration-line {
+            position: absolute;
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .line-1 {
+            width: 200px;
+            height: 1px;
+            top: 20%;
+            right: 10%;
+            transform: rotate(45deg);
+        }
+        
+        .line-2 {
+            width: 150px;
+            height: 1px;
+            bottom: 25%;
+            left: 8%;
+            transform: rotate(-30deg);
+        }
+        
+        .line-3 {
+            width: 100px;
+            height: 1px;
+            top: 60%;
+            left: 5%;
+            transform: rotate(60deg);
+        }
+        
+        /* 内容容器 */
+        .content-wrapper {
+            position: relative;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 0 200px;
+            text-align: center;
+            color: white;
+            z-index: 10;
+        }
+        
+        /* 主标题 */
+        .main-title {
+            font-size: 72px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            letter-spacing: 5px;
+            text-shadow: 0 3px 15px rgba(0,0,0,0.4);
+            position: relative;
+            display: inline-block;
+        }
+        
+        /* 标题装饰线 */
+        .main-title::after {
+            content: "";
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, #e67e22, transparent);
+        }
+        
+        /* 副标题 */
+        .sub-title {
+            font-size: 32px;
+            font-weight: 300;
+            margin-bottom: 60px;
+            letter-spacing: 2px;
+            opacity: 0.9;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        /* 公司信息 */
+        .company-info {
+            position: absolute;
+            bottom: 80px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 10;
+        }
+        
+        .company-name {
+            font-size: 24px;
+            font-weight: 400;
+            margin-bottom: 10px;
+            color: rgba(255,255,255,0.95);
+        }
+        
+        .presentation-date {
+            font-size: 18px;
+            font-weight: 300;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        /* 额外的装饰几何图形 */
+        .geometric-shape {
+            position: absolute;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .triangle-1 {
+            width: 0;
+            height: 0;
+            border-left: 30px solid transparent;
+            border-right: 30px solid transparent;
+            border-bottom: 40px solid rgba(230,126,34,0.2);
+            top: 15%;
+            right: 20%;
+            border: none;
+        }
+        
+        .square-1 {
+            width: 25px;
+            height: 25px;
+            background: rgba(255,255,255,0.05);
+            transform: rotate(45deg);
+            top: 70%;
+            left: 80%;
+        }
+        
+        .hexagon-1 {
+            width: 40px;
+            height: 35px;
+            background: rgba(230,126,34,0.15);
+            position: relative;
+            top: 80%;
+            right: 30%;
+        }
+        
+        .hexagon-1:before {
+            content: "";
+            position: absolute;
+            top: -10px;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-bottom: 10px solid rgba(230,126,34,0.15);
+        }
+        
+        .hexagon-1:after {
+            content: "";
+            position: absolute;
+            bottom: -10px;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 10px solid rgba(230,126,34,0.15);
+        }
+    </style>
+</head>
+<body>
+    <!-- 主容器 - 16:9 比例 -->
+    <div class="main-container">
+        <!-- 多层背景 -->
+        <div class="main-background"></div>
+        <div class="texture-layer"></div>
+        
+        <!-- 装饰圆圈 -->
+        <div class="decoration-circle circle-large"></div>
+        <div class="decoration-circle circle-medium"></div>
+        <div class="decoration-circle circle-small"></div>
+        
+        <!-- 装饰线条 -->
+        <div class="decoration-line line-1"></div>
+        <div class="decoration-line line-2"></div>
+        <div class="decoration-line line-3"></div>
+        
+        <!-- 数据点 -->
+        <div class="data-dot dot-1"></div>
+        <div class="data-dot dot-2"></div>
+        <div class="data-dot dot-3"></div>
+        <div class="data-dot dot-4"></div>
+        <div class="data-dot dot-5"></div>
+        
+        <!-- 几何装饰形状 -->
+        <div class="geometric-shape triangle-1"></div>
+        <div class="geometric-shape square-1"></div>
+        <div class="geometric-shape hexagon-1"></div>
+        
+        <!-- 内容区 -->
+        <div class="content-wrapper">
+            <h1 class="main-title">企业数字化转型解决方案</h1>
+            <p class="sub-title">Digital Transformation Solution for Enterprises</p>
+        </div>
+        
+        <!-- 公司信息 -->
+        <div class="company-info">
+            <div class="company-name">某某科技咨询有限公司</div>
+            <div class="presentation-date">2023年11月</div>
+        </div>
+    </div>
+</body>
+</html>`;
+            
+            elements.htmlInput.value = exampleHtml;
+            showNotification('已加载包含丰富装饰元素的示例HTML（纹理、线条、几何图形等）', 'success');
+        });
     }
     document.addEventListener('keydown', handleKeyboardShortcuts);
 }

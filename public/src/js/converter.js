@@ -143,6 +143,31 @@ class HtmlToPptConverter {
 
             const { captureTarget, finalWidth, finalHeight } = this._calculateCaptureDetails(element, '截图模式');
 
+            // 获取正确的背景色
+            const computedStyle = window.getComputedStyle(captureTarget);
+            let backgroundColor = null;
+            
+            // 检查是否有背景图片（包括渐变）
+            if (computedStyle.backgroundImage && computedStyle.backgroundImage !== 'none') {
+                // 对于渐变或背景图片，不设置backgroundColor让html2canvas自动处理
+                backgroundColor = null;
+            } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'transparent' && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                backgroundColor = computedStyle.backgroundColor;
+            } else {
+                // 如果目标元素没有背景色，查找父元素的背景色
+                let parent = captureTarget.parentElement;
+                while (parent && parent !== document.body) {
+                    const parentStyle = window.getComputedStyle(parent);
+                    if (parentStyle.backgroundColor && parentStyle.backgroundColor !== 'transparent' && parentStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                        backgroundColor = parentStyle.backgroundColor;
+                        break;
+                    }
+                    parent = parent.parentElement;
+                }
+            }
+            
+            console.log('截图背景色:', backgroundColor);
+
             // 如果启用了文字提取选项，使用分阶段处理
             if (this.options.extractText) {
                 console.log('截图模式 + 文字提取：采用分阶段处理...');
@@ -154,7 +179,7 @@ class HtmlToPptConverter {
                 // 保存文字内容并临时清空
                 const originalTextContents = this.temporarilyHideTextContent(captureTarget);
 
-                const canvas = await html2canvas(captureTarget, {
+                const canvasOptions = {
                     width: finalWidth,
                     height: finalHeight,
                     x: 0,
@@ -162,11 +187,35 @@ class HtmlToPptConverter {
                     scale: 1,
                     useCORS: true,
                     allowTaint: true,
+                    foreignObjectRendering: true,
                     logging: this.options.debug || false,
-                    backgroundColor: window.getComputedStyle(captureTarget).backgroundColor || '#ffffff',
                     scrollX: -captureTarget.scrollLeft,
-                    scrollY: -captureTarget.scrollTop
-                });
+                    scrollY: -captureTarget.scrollTop,
+                    // 增强装饰元素渲染
+                    ignoreElements: function(element) {
+                        // 不忽略任何装饰元素
+                        return false;
+                    },
+                    onclone: function(clonedDoc) {
+                        // 确保克隆文档中的样式完整
+                        const clonedContainer = clonedDoc.querySelector('.main-container');
+                        if (clonedContainer) {
+                            // 强制设置z-index确保层级正确
+                            const decorElements = clonedContainer.querySelectorAll('.decoration-ring, .deco-line, .data-dot, .geo-triangle, .geo-square, .geo-diamond, .texture-pattern');
+                            decorElements.forEach(el => {
+                                el.style.zIndex = 'auto';
+                                el.style.position = 'absolute';
+                            });
+                        }
+                    }
+                };
+                
+                // 只有在确实需要时才设置backgroundColor
+                if (backgroundColor) {
+                    canvasOptions.backgroundColor = backgroundColor;
+                }
+
+                const canvas = await html2canvas(captureTarget, canvasOptions);
 
                 const imageData = canvas.toDataURL('image/png');
                 
@@ -204,7 +253,8 @@ class HtmlToPptConverter {
             } else {
                 // 传统的纯截图模式
                 this.updateStatus('extract', 'processing', `正在截取完整图片 ${finalWidth}x${finalHeight}...`);
-                const canvas = await html2canvas(captureTarget, {
+                
+                const canvasOptions = {
                     width: finalWidth,
                     height: finalHeight,
                     x: 0,
@@ -213,10 +263,16 @@ class HtmlToPptConverter {
                     useCORS: true,
                     allowTaint: true,
                     logging: this.options.debug || false,
-                    backgroundColor: window.getComputedStyle(captureTarget).backgroundColor || '#ffffff',
                     scrollX: -captureTarget.scrollLeft,
                     scrollY: -captureTarget.scrollTop
-                });
+                };
+                
+                // 只有在确实需要时才设置backgroundColor
+                if (backgroundColor) {
+                    canvasOptions.backgroundColor = backgroundColor;
+                }
+
+                const canvas = await html2canvas(captureTarget, canvasOptions);
             
                 const imageData = canvas.toDataURL('image/png');
                 this.updateStatus('extract', 'processing', '截图完成，添加到PPT...');
@@ -294,7 +350,33 @@ class HtmlToPptConverter {
                     originalTextContents = this.temporarilyHideTextContent(contentElement);
 
                     console.log(`混合模式背景截图，目标元素: ${contentElement.tagName}.${contentElement.className}, 计划尺寸: ${bgFinalWidth}x${bgFinalHeight}`);
-                    const canvas = await html2canvas(contentElement, {
+                    
+                    // 获取正确的背景色
+                    const computedStyle = window.getComputedStyle(contentElement);
+                    let backgroundColor = null;
+                    
+                    // 检查是否有背景图片（包括渐变）
+                    if (computedStyle.backgroundImage && computedStyle.backgroundImage !== 'none') {
+                        // 对于渐变或背景图片，不设置backgroundColor让html2canvas自动处理
+                        backgroundColor = null;
+                    } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'transparent' && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                        backgroundColor = computedStyle.backgroundColor;
+                    } else {
+                        // 如果目标元素没有背景色，查找父元素的背景色
+                        let parent = contentElement.parentElement;
+                        while (parent && parent !== document.body) {
+                            const parentStyle = window.getComputedStyle(parent);
+                            if (parentStyle.backgroundColor && parentStyle.backgroundColor !== 'transparent' && parentStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                                backgroundColor = parentStyle.backgroundColor;
+                                break;
+                            }
+                            parent = parent.parentElement;
+                        }
+                    }
+                    
+                    console.log('混合模式背景色:', backgroundColor);
+                    
+                    const canvasOptions = {
                         width: bgFinalWidth,
                         height: bgFinalHeight,
                         x: 0,
@@ -303,10 +385,16 @@ class HtmlToPptConverter {
                         useCORS: true,
                         allowTaint: true,
                         logging: this.options.debug || false,
-                        backgroundColor: window.getComputedStyle(contentElement).backgroundColor || '#ffffff',
                         scrollX: -contentElement.scrollLeft,
                         scrollY: -contentElement.scrollTop
-                    });
+                    };
+                    
+                    // 只有在确实需要时才设置backgroundColor
+                    if (backgroundColor) {
+                        canvasOptions.backgroundColor = backgroundColor;
+                    }
+
+                    const canvas = await html2canvas(contentElement, canvasOptions);
                     const backgroundImageData = canvas.toDataURL('image/png');
                     slide.addImage({
                         data: backgroundImageData, x: 0, y: 0,
@@ -1680,11 +1768,14 @@ class HtmlToPptConverter {
         }
         
         const contentSelectors = [
+            // 新增：针对您的HTML结构的特殊选择器
+            '.main-container', '.presentation-container', '.slide-container',
+            
             // 智慧物流园区HTML结构
             '.container .aspect-ratio-box .content', '.aspect-ratio-box .content', '.container .content',
             
             // 常见的演示文稿容器
-            '.presentation-container', '.content-wrapper', '.slide-container',
+            '.content-wrapper', 
             
             // 原有的选择器
             '.content', '.aspect-ratio-box', '[data-capture-target]', 
